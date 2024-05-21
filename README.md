@@ -1,70 +1,81 @@
-# Getting Started with Create React App
+https://rvohealth.udemy.com/course/docker-and-kubernetes-the-complete-guide/learn/lecture/29411942#overview
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Trying out docker with a react app.
 
-## Available Scripts
+created a new dir called try-docker
+create a new app called frontend using
+npx create-react-app frontend
 
-In the project directory, you can run:
+created a new Dockerfile.dev
 
-### `npm start`
+delete the node_modules folder completely to avoid duplicate dependencies.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+from terminal :
+docker build -f Dockerfile.dev .
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+the above gives us an image id. Grab it, and :
+docker run <imageid>
 
-### `npm test`
+The above does not expose localhost:3000 , so :
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+docker run -p 3000:3000 <imageid>
 
-### `npm run build`
+Every time we make change to the source code, we want it to automatically be propogated to our container. (like hot reloading)
+For that, we can use Docker Volume so it can act as a reference to the code folder outside the container :
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+docker run -p 3000:3000 -v /app/node_modules -v $(pwd):/app <imageid>
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+In the above, the -v /app/node_modules (with the :), we are just saying this is a placeholder for the node_modules inside app in the container.
+Don't try to map it to any folder.
+Whereas, when we say -v ${pwd}:/app, it maps /app to the current present working directory (pwd) folder pointing to frontend folder.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+Using Docker Compose:
+Instead of using the long docker run command of docker run -p 3000:3000 -v /app/node_modules -v $(pwd):/app <imageid>
+we can use docker compose by creating docker-compose.yml, and then just running this from terminal :
+docker-compose up
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+To run the tests, we overide our default npm start command from the terminal :
+docker build -f Dockerfile.dev .
+docker run -it <imageid> npm run test
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Now same way, for hot reloading tests , we can setup a second service (container) in docker-compose for test files
+Added the second service in docker-compose.yml :
+tests:
+build:
+context: .
+dockerfile: Dockerfile.dev
+volumes: - /app/node_modules - .:/app
+command: ['npm', 'run', 'test']
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Then from terminal :
+docker-compose up --build
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Now this run the web app on port 3000, as well as runs the tests.
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Production environment :
+Now for production environment, we need something that will take incoming request and responds to it.
+For that, we use Nginx, which will take incoming traffic and respond to it with routing.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+We do a multi step build process (build phase, and run phase )
 
-### Code Splitting
+Added the Dockerfile with multistep which finally copies the build folder to nginx
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+To build :
+docker build -t ajaythackerrvo/dockerreactapp .
 
-### Analyzing the Bundle Size
+To run, need to open port 8080 for nginx :
+docker run -p 8080:80 ajaythackerrvo/dockerreactapp
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Then we can go to http://localhost:8080
 
-### Making a Progressive Web App
+To push the container to docker hub :
+docker login
+Once logged in to ajaythackerrvo
+docker push ajaythackerrvo/dockerreactapp
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Once the container is pushed to public repository, from any other system, i can :
+docker run -p 8080:80 ajaythackerrvo/dockerreactapp
